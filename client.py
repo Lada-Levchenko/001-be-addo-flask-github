@@ -1,5 +1,5 @@
 import json
-from statistics import mode
+from nonstrict_mode import mode
 import requests
 from requests import exceptions
 import getpass
@@ -63,7 +63,7 @@ class GithubClient(object):
             return info_list
 
     @staticmethod
-    def export_user_info(username, file_name, extension):
+    def get_user_info(username):
         try:
             response = requests.get('https://api.github.com/users/%s' % username)
         except exceptions.InvalidSchema as e:
@@ -93,25 +93,30 @@ class GithubClient(object):
                     size,
                     info_obj['followers'])
 
-            if extension == '0':
-                file = Export.export_to_xls(data, headers, file_name)
-            else:
-                file = Export.export_to_csv(data, headers, file_name)
-            return file
+            return json.dumps([headers, data])
 
 
 class Export(object):
 
     @staticmethod
-    def export_to_xls(data, headers, file_name):
-        dataset = tablib.Dataset(data, headers=headers)
+    def create_dataset(data, headers_flag):
+        rows = json.loads(data)
+        if headers_flag:
+            headers = rows[0]
+            del rows[0]
+            return tablib.Dataset(*rows, headers=headers)
+        else:
+            return tablib.Dataset(*rows)
+
+    @staticmethod
+    def export_to_xls(data, file_name, headers_flag=False):
+        dataset = Export.create_dataset(data, headers_flag)
         return open(file_name + '.xls', 'wb').write(dataset.xls)
 
     @staticmethod
-    def export_to_csv(data, headers, file_name):
-        dataset = tablib.Dataset(data, headers=headers)
+    def export_to_csv(data, file_name, headers_flag=False):
+        dataset = Export.create_dataset(data, headers_flag)
         return open(file_name + '.csv', 'w').write(dataset.csv)
-
 
 
 class GithubClientShell(cmd.Cmd):
@@ -149,7 +154,13 @@ class GithubClientShell(cmd.Cmd):
         username = input('Username: ')
         file_name = input("Choose name of exporting file: ")
         extension = input("Choose extension (for '.xls' type 0, for '.csv' type 1): ")
-        GithubClient.export_user_info(username, file_name, extension)
+        print("Collecting info...")
+        user_info = GithubClient.get_user_info(username)
+        print("Info collected. Exporting...")
+        if extension == '0':
+            Export.export_to_xls(user_info, file_name)
+        else:
+            Export.export_to_csv(user_info, file_name)
         print("User Info exported!")
 
     def do_bye(self, arg):
@@ -157,4 +168,5 @@ class GithubClientShell(cmd.Cmd):
         return True
 
 
-# main()
+if __name__ == "__main__":
+    main()
