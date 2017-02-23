@@ -92,23 +92,24 @@ class GithubClient(object):
                     info_obj['updated_at'],
                     size,
                     info_obj['followers'])
-            dataset = tablib.Dataset(data, headers=headers)
 
             if extension == '0':
-                file = Export.export_to_xls(dataset, file_name)
+                file = Export.export_to_xls(data, headers, file_name)
             else:
-                file = Export.export_to_csv(dataset, file_name)
+                file = Export.export_to_csv(data, headers, file_name)
             return file
 
 
 class Export(object):
 
     @staticmethod
-    def export_to_xls(dataset, file_name):
+    def export_to_xls(data, headers, file_name):
+        dataset = tablib.Dataset(data, headers=headers)
         return open(file_name + '.xls', 'wb').write(dataset.xls)
 
     @staticmethod
-    def export_to_csv(dataset, file_name):
+    def export_to_csv(data, headers, file_name):
+        dataset = tablib.Dataset(data, headers=headers)
         return open(file_name + '.csv', 'w').write(dataset.csv)
 
 
@@ -156,4 +157,4 @@ class GithubClientShell(cmd.Cmd):
         return True
 
 
-main()
+# main()
