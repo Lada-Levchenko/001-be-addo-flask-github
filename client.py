@@ -12,89 +12,70 @@ def main():
     client.cmdloop(client.intro)
 
 
-class GithubClientShell(cmd.Cmd):
-    intro = 'Welcome to the GithubClient shell.   Type help or ? to list commands.\n'
-    prompt = '(GithubClient) '
+class GithubClient(object):
 
-    def do_get_repos(self, arg):
-        print("Get all repositories of user:")
-        username = input('Username: ')
+    @staticmethod
+    def get_repos(username):
         try:
             response = requests.get('https://api.github.com/users/%s/repos' % username)
         except exceptions.InvalidSchema as e:
-            print(e)
+            return e.errno
         else:
-            print(response.status_code)
-            print("Repositories:")
-            for repo in response.json():
-                print(repo["name"])
-        finally:
-            print("get_repos finished!")
+            return [repo["name"] for repo in response.json()]
 
-    def do_create_repo(self, arg):
-        print("Create new repository:")
-        username = input('Username: ')
-        password = getpass.getpass('Password: ')
-        repodata = {'name': input('Repository Name: ')}
+    @staticmethod
+    def create_repo(username, password, reponame):
+        repodata = {'name': reponame}
         try:
             response = requests.post('https://api.github.com/user/repos', auth=(username, password),
                                      data=json.dumps(repodata))
-
         except exceptions.InvalidSchema as e:
-            print(e)
+            return e.errno
         else:
-            print(response.status_code)
-            print("Repositories:")
-            for repo in response.json():
-                print(repo["name"])
-        finally:
-            print("create_repo finished!")
+            return reponame + " created with id: " + str(response.json()['id'])
 
-    def do_get_repo_info(self, arg):
-        print("Get info about user's repository:")
-        username = input('Username: ')
-        repo = input('Repository Name: ')
+    @staticmethod
+    def get_repo_info(username, reponame):
         try:
-            response = requests.get('https://api.github.com/repos/%s/%s' % (username, repo))
+            response = requests.get('https://api.github.com/repos/%s/%s' % (username, reponame))
         except exceptions.InvalidSchema as e:
-            print(e)
+            return e.errno
         else:
-            print(response.status_code)
+            info_list = []
             repo_obj = response.json()
             for param, value in repo_obj.items():
-                if not isinstance(value, dict):
-                    print(param + " = " + str(value))
+                if isinstance(value, dict):
+                    info_list.append(param + " = complicated object")
+                else:
+                    info_list.append(param + " = " + str(value))
                     if param.endswith("_url") and value is not None and value != "https://github.com/%s/%s" % (
-                            username, repo) and not value.endswith(".git"):
+                            username, reponame) and not value.endswith(".git"):
                         try:
                             response2 = requests.get(value.split('{', 1)[0])
                         except (exceptions.InvalidSchema, exceptions.MissingSchema) as e:
-                            print(e)
+                            return e.errno
                         else:
                             if type(response2.json()) is dict:
-                                print(".....count: " + str(len(response2.json())))
-                else:
-                    print(param + " = complicated object")
-        finally:
-            print("get_repo_info finished!")
+                                if 'message' in response2.json():
+                                    info_list.append("....." + response2.json()['message'])
+                                else:
+                                    info_list.append(".....count: " + str(len(response2.json())))
+            return info_list
 
-    def do_export_user_info(self, arg):
-        print("Export info about user:")
-        username = input('Username: ')
+    @staticmethod
+    def export_user_info(username, file_name, extension):
         try:
             response = requests.get('https://api.github.com/users/%s' % username)
         except exceptions.InvalidSchema as e:
-            print(e)
+            return e.errno
         else:
-            print(response.status_code)
             info_obj = response.json()
-
             size = 0
             prevailing_language = "None"
             try:
                 response2 = requests.get(info_obj['repos_url'])
             except exceptions.InvalidSchema as e:
-                print(e)
+                return e.errno
             else:
                 languages = []
                 for repo in response2.json():
@@ -113,14 +94,62 @@ class GithubClientShell(cmd.Cmd):
                     info_obj['followers'])
             dataset = tablib.Dataset(data, headers=headers)
 
-            file_name = input("Choose name of exporting file: ")
-            answer = input("Choose extension (for '.xls' type 0, for '.csv' type 1): ")
-            extension = '.xls' if answer == '0' else '.csv'
-            final_set = dataset.xls if answer == '0' else dataset.csv
-            method = 'wb' if answer == '0' else 'w'
-            open(file_name + extension, method).write(final_set)
-        finally:
-            print("export_user_info finished!")
+            if extension == '0':
+                file = Export.export_to_xls(dataset, file_name)
+            else:
+                file = Export.export_to_csv(dataset, file_name)
+            return file
+
+
+class Export(object):
+
+    @staticmethod
+    def export_to_xls(dataset, file_name):
+        return open(file_name + '.xls', 'wb').write(dataset.xls)
+
+    @staticmethod
+    def export_to_csv(dataset, file_name):
+        return open(file_name + '.csv', 'w').write(dataset.csv)
+
+
+
+class GithubClientShell(cmd.Cmd):
+    intro = 'Welcome to the GithubClient shell.   Type help or ? to list commands.\n'
+    prompt = '(GithubClient) '
+
+    def do_get_repos(self, arg):
+        print("Get all repositories of user:")
+        username = input('Username: ')
+        repo_names = GithubClient.get_repos(username)
+        print("Repositories: ")
+        for name in repo_names:
+            print(name)
+
+    def do_create_repo(self, arg):
+        print("Create new repository:")
+        username = input('Username: ')
+        password = getpass.getpass('Password: ')
+        reponame = input('Repository Name: ')
+        message = GithubClient.create_repo(username, password, reponame)
+        print(message)
+
+    def do_get_repo_info(self, arg):
+        print("Get info about user's repository:")
+        username = input('Username: ')
+        reponame = input('Repository Name: ')
+        print("Collecting info...")
+        repo_info = GithubClient.get_repo_info(username, reponame)
+        print("Repository Info: ")
+        for line in repo_info:
+            print(line)
+
+    def do_export_user_info(self, arg):
+        print("Export info about user:")
+        username = input('Username: ')
+        file_name = input("Choose name of exporting file: ")
+        extension = input("Choose extension (for '.xls' type 0, for '.csv' type 1): ")
+        GithubClient.export_user_info(username, file_name, extension)
+        print("User Info exported!")
 
     def do_bye(self, arg):
         print('Thank you for using GithubClient')
