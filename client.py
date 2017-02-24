@@ -13,11 +13,12 @@ def main():
 
 
 class GithubClient(object):
+    api_url = "https://api.github.com"
 
     @staticmethod
     def get_repos(username):
         try:
-            response = requests.get('https://api.github.com/users/%s/repos' % username)
+            response = requests.get(GithubClient.api_url + '/users/%s/repos' % username)
         except exceptions.InvalidSchema as e:
             return e
         else:
@@ -27,7 +28,7 @@ class GithubClient(object):
     def create_repo(username, password, reponame):
         repodata = {'name': reponame}
         try:
-            response = requests.post('https://api.github.com/user/repos', auth=(username, password),
+            response = requests.post(GithubClient.api_url + '/user/repos', auth=(username, password),
                                      data=json.dumps(repodata))
         except exceptions.InvalidSchema as e:
             return e
@@ -37,35 +38,50 @@ class GithubClient(object):
     @staticmethod
     def get_repo_info(username, reponame):
         try:
-            response = requests.get('https://api.github.com/repos/%s/%s' % (username, reponame))
+            response = requests.get(GithubClient.api_url + '/repos/%s/%s' % (username, reponame))
         except exceptions.InvalidSchema as e:
             return e
         else:
-            info_list = []
+            info_dict = {}
             repo_obj = response.json()
+
+            info_dict["total_commits"] = GithubClient.get_repo_commits(username, reponame)
+            info_dict["branches"] = GithubClient.get_repo_branches(username, reponame)
+
             for param, value in repo_obj.items():
-                if isinstance(value, dict):
-                    info_list.append(param + " = complicated object")
-                else:
-                    info_list.append(param + " = " + str(value))
-                    if param.endswith("_url") and value is not None and value != "https://github.com/%s/%s" % (
-                            username, reponame) and not value.endswith(".git"):
-                        try:
-                            response2 = requests.get(value.split('{', 1)[0])
-                        except (exceptions.InvalidSchema, exceptions.MissingSchema) as e:
-                            return e
-                        else:
-                            if type(response2.json()) is dict:
-                                if 'message' in response2.json():
-                                    info_list.append("....." + response2.json()['message'])
-                                else:
-                                    info_list.append(".....count: " + str(len(response2.json())))
-            return info_list
+                if not isinstance(value, dict) and not param.endswith("_url"):
+                    info_dict[param] = value
+
+            return info_dict
+
+    @staticmethod
+    def get_repo_commits(username, reponame):
+        try:
+            response = requests.get(GithubClient.api_url + '/repos/%s/%s/stats/contributors' % (username, reponame))
+        except exceptions.InvalidSchema as e:
+            return e
+        else:
+            contributors = response.json()
+            commits = 0
+            if len(contributors) > 0:
+                for contributor in contributors:
+                    commits += contributor['total']
+            return commits
+
+    @staticmethod
+    def get_repo_branches(username, reponame):
+        try:
+            response = requests.get(GithubClient.api_url + '/repos/%s/%s/branches' % (username, reponame))
+        except exceptions.InvalidSchema as e:
+            return e
+        else:
+            branches = response.json()
+            return len(branches)
 
     @staticmethod
     def get_user_info(username):
         try:
-            response = requests.get('https://api.github.com/users/%s' % username)
+            response = requests.get(GithubClient.api_url + '/users/%s' % username)
         except exceptions.InvalidSchema as e:
             return e
         else:
@@ -145,8 +161,8 @@ class GithubClientShell(cmd.Cmd):
         print("Collecting info...")
         repo_info = GithubClient.get_repo_info(username, reponame)
         print("Repository Info: ")
-        for line in repo_info:
-            print(line)
+        for key, value in repo_info.items():
+            print(key + " = " + str(value))
 
     def do_export_user_info(self, arg):
         print("Export info about user:")
