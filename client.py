@@ -19,7 +19,7 @@ class GithubClient(object):
         try:
             response = requests.get('https://api.github.com/users/%s/repos' % username)
         except exceptions.InvalidSchema as e:
-            return e.errno
+            return e
         else:
             return [repo["name"] for repo in response.json()]
 
@@ -30,7 +30,7 @@ class GithubClient(object):
             response = requests.post('https://api.github.com/user/repos', auth=(username, password),
                                      data=json.dumps(repodata))
         except exceptions.InvalidSchema as e:
-            return e.errno
+            return e
         else:
             return reponame + " created with id: " + str(response.json()['id'])
 
@@ -39,7 +39,7 @@ class GithubClient(object):
         try:
             response = requests.get('https://api.github.com/repos/%s/%s' % (username, reponame))
         except exceptions.InvalidSchema as e:
-            return e.errno
+            return e
         else:
             info_list = []
             repo_obj = response.json()
@@ -53,7 +53,7 @@ class GithubClient(object):
                         try:
                             response2 = requests.get(value.split('{', 1)[0])
                         except (exceptions.InvalidSchema, exceptions.MissingSchema) as e:
-                            return e.errno
+                            return e
                         else:
                             if type(response2.json()) is dict:
                                 if 'message' in response2.json():
@@ -67,7 +67,7 @@ class GithubClient(object):
         try:
             response = requests.get('https://api.github.com/users/%s' % username)
         except exceptions.InvalidSchema as e:
-            return e.errno
+            return e
         else:
             info_obj = response.json()
             size = 0
@@ -75,7 +75,7 @@ class GithubClient(object):
             try:
                 response2 = requests.get(info_obj['repos_url'])
             except exceptions.InvalidSchema as e:
-                return e.errno
+                return e
             else:
                 languages = []
                 for repo in response2.json():
@@ -93,20 +93,19 @@ class GithubClient(object):
                     size,
                     info_obj['followers'])
 
-            return json.dumps([headers, data])
+            return [headers, data]
 
 
 class Export(object):
 
     @staticmethod
     def create_dataset(data, headers_flag):
-        rows = json.loads(data)
         if headers_flag:
-            headers = rows[0]
-            del rows[0]
-            return tablib.Dataset(*rows, headers=headers)
+            headers = data[0]
+            del data[0]
+            return tablib.Dataset(*data, headers=headers)
         else:
-            return tablib.Dataset(*rows)
+            return tablib.Dataset(*data)
 
     @staticmethod
     def export_to_xls(data, file_name, headers_flag=False):
@@ -158,9 +157,9 @@ class GithubClientShell(cmd.Cmd):
         user_info = GithubClient.get_user_info(username)
         print("Info collected. Exporting...")
         if extension == '0':
-            Export.export_to_xls(user_info, file_name)
+            Export.export_to_xls(user_info, file_name, True)
         else:
-            Export.export_to_csv(user_info, file_name)
+            Export.export_to_csv(user_info, file_name, True)
         print("User Info exported!")
 
     def do_bye(self, arg):
