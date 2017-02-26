@@ -1,0 +1,69 @@
+{% extends "bootstrap/base.html" %}
+{% block title %} GithubClient (lio) {% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="row">
+    <h1>Github Client</h1>
+    {% if request.path != '/' %}
+    <div class="row">
+      <a class="btn btn-default" href="/">Back</a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="row">
+
+      {% if not username %}
+      <div class="col-md-4">
+        <form method="post" action="/info">
+          <div class="form-group">
+            <label for="InputUsername">Username</label>
+            <input type="name" name="username" class="form-control" id="InputUsername" placeholder="Username">
+          </div>
+          <button type="submit" class="btn btn-default">Submit</button>
+        </form>
+      </div>
+      {% else %}
+
+        {% if user_info %}
+      <div class="col-md-8">
+        <h3>{{ username}} Info:</h3>
+        <table class="table table-striped">
+          <tr>
+            {% for item in user_info[0] %}
+                <th>{{ item }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for item in user_info[1] %}
+                <td>{{ item }}</td>
+            {% endfor %}
+          </tr>
+        </table>
+      </div>
+        {% endif %}
+
+        {% if repo_table %}
+      <div class="col-md-4">
+        <h3>Rpositories of user:</h3>
+        <table class="table table-striped">
+          <tr>
+            <th>Name</th>
+            <th>Commits</th>
+            <th>Branches</th>
+          </tr>
+          {% for entry in repo_table %}
+            <tr>
+              <td>{{ entry['name'] }}</td>
+              <td>{{ entry['commits'] }}</td>
+              <td>{{ entry['branches'] }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+        {% endif %}
+      {% endif %}
+
+  </div>
+</div>
+{% endblock %}
